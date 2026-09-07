@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b48a1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Справочник АЭ">
+  <title>Справочник АЭ</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="installTip" class="install-tip" hidden>
+    На iPhone: Safari → Поделиться → <b>На экран «Домой»</b>
+    <button type="button" id="installTipClose" aria-label="Закрыть">×</button>
+  </div>
+  <header>
+    <div class="brand">
+      <img src="brand_logo.webp" alt="Автоэлектроника">
+      <div>
+        <b>Справочник АЭ</b>
+        <small id="catalogMeta" title="Нажмите, чтобы проверить обновление каталога">Версия web</small>
+      </div>
+      <button id="themeBtn" class="theme-btn" type="button">Тёмная</button>
+    </div>
+    <nav class="tabs" aria-label="Разделы">
+      <button class="tab active" data-mode="catalog">Каталог</button>
+      <button class="tab" data-mode="favorites">★ Избранное <span id="favoriteCount"></span></button>
+      <button class="tab" data-mode="recent">Недавние</button>
+    </nav>
+  </header>
+  <main>
+    <section id="searchPanel" class="search-panel">
+      <div class="search-row">
+        <div class="search-wrap">
+          <input id="search" type="search" autocomplete="off" placeholder="Код, артикул или название" enterkeyhint="search">
+        </div>
+        <button id="scanBtn" type="button" class="scan-btn">Сканер</button>
+      </div>
+      <select id="category"><option value="">Все категории</option></select>
+    </section>
+    <div id="summary"></div>
+    <section id="results" class="results"></section>
+    <button id="loadMore" class="load-more" hidden>Показать ещё</button>
+  </main>
+  <dialog id="details">
+    <button class="close" aria-label="Закрыть">×</button>
+    <div id="detailsBody"></div>
+  </dialog>
+  <div id="zoom" hidden>
+    <img id="zoomImg" alt="Увеличенное фото">
+  </div>
+  <div id="scanOverlay" hidden>
+    <div class="scan-top">
+      <span>Сканер АЭ</span>
+      <button type="button" id="scanClose" aria-label="Закрыть">×</button>
+    </div>
+    <div id="qr-reader"></div>
+    <p class="scan-hint">Наведите рамку на штрихкод<br>или QR-код этикетки</p>
+  </div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="catalog.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
