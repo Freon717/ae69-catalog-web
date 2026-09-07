@@ -1,4 +1,4 @@
-const CACHE = 'ae69-web-v3';
+const CACHE = 'ae69-web-v4';
 const PRECACHE = [
   './',
   './index.html',
@@ -11,7 +11,6 @@ const PRECACHE = [
   './icons/apple-touch-icon.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './vendor/zxing-browser.min.js',
   './vendor/zbar-wasm.min.js'
 ];
 

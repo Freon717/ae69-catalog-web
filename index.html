@@ -55,25 +55,11 @@
   <div id="zoom" hidden>
     <img id="zoomImg" alt="Увеличенное фото">
   </div>
-  <div id="scanOverlay" hidden>
-    <div class="scan-top">
-      <span>Сканер АЭ</span>
-      <button type="button" id="scanClose" aria-label="Закрыть">×</button>
-    </div>
-    <div class="scan-stage">
-      <video id="scanVideo" playsinline webkit-playsinline muted autoplay></video>
-      <div class="scan-frame"></div>
-    </div>
-    <canvas id="scanCanvas" hidden></canvas>
-    <p id="scanStatus" class="scan-hint">Наведите рамку на штрихкод<br>или QR-код этикетки</p>
-    <label class="scan-photo-btn">Снять фото этикетки
-      <input id="scanFile" type="file" accept="image/*" capture="environment">
-    </label>
-  </div>
+  <input id="scanFile" type="file" accept="image/*" capture="environment" hidden>
+  <canvas id="scanCanvas" hidden></canvas>
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="vendor/zbar-wasm.min.js?v=3"></script>
-  <script src="vendor/zxing-browser.min.js?v=3"></script>
-  <script src="catalog.js?v=3"></script>
-  <script src="app.js?v=3"></script>
+  <script src="vendor/zbar-wasm.min.js?v=4"></script>
+  <script src="catalog.js?v=4"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

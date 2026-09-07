@@ -1,5 +1,5 @@
 const Catalog = (() => {
-  const APP_VERSION = 'web-1.0';
+  const APP_VERSION = 'web-1.1';
   const MANIFESTS = [
     'https://raw.githubusercontent.com/Freon717/ae69-catalog-data/main/catalog-manifest.json',
     'https://cdn.jsdelivr.net/gh/Freon717/ae69-catalog-data@main/catalog-manifest.json'
@@ -24,10 +24,7 @@ const Catalog = (() => {
   let dataVersion = 0;
   let updatedAt = '';
   let productCount = 0;
-  let scanner = null;
   let scanBusy = false;
-  let scanStream = null;
-  let scanTimer = 0;
 
   function normalize(value) {
     return String(value || '').toLowerCase().replace(/ё/g, 'е').replace(/[^0-9a-zа-я]/g, '');
@@ -227,188 +224,127 @@ const Catalog = (() => {
     return !!code && byCode.has(String(code));
   }
 
-  function hitScan(text) {
-      if (!text || !scanBusy) return;
-      stopScan();
-      if (typeof window.onBarcode === 'function') window.onBarcode(String(text));
+function hitScan(text) {
+    if (!text) return false;
+    scanBusy = false;
+    if (typeof window.onBarcode === 'function') window.onBarcode(String(text));
+    return true;
+  }
+  function symbolText(symbol) {
+    if (!symbol) return '';
+    try {
+      if (typeof symbol.decode === 'function') return String(symbol.decode('utf-8') || '');
+    } catch {}
+    if (symbol.data instanceof Uint8Array) return new TextDecoder().decode(symbol.data);
+    return String(symbol.data || '');
+  }
+  function boostContrast(imageData) {
+    const d = imageData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const g = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+      let v = (g - 128) * 1.55 + 128;
+      v = v < 0 ? 0 : v > 255 ? 255 : v;
+      d[i] = d[i + 1] = d[i + 2] = v;
     }
-    function symbolText(symbol) {
-      if (!symbol) return '';
-      try {
-        if (typeof symbol.decode === 'function') return String(symbol.decode('utf-8') || '');
-      } catch {}
-      if (symbol.data instanceof Uint8Array) return new TextDecoder().decode(symbol.data);
-      return String(symbol.data || symbol.getText && symbol.getText() || '');
-    }
-    function boostContrast(imageData) {
-      const d = imageData.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const g = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
-        let v = (g - 128) * 1.6 + 128;
-        v = v < 0 ? 0 : v > 255 ? 255 : v;
-        d[i] = d[i + 1] = d[i + 2] = v;
-      }
-      return imageData;
-    }
-    async function decodeImageData(imageData) {
-      const zbar = window.zbarWasm;
-      if (zbar && zbar.scanImageData) {
-        try {
-          const symbols = await zbar.scanImageData(imageData);
-          if (symbols && symbols.length) {
-            const text = symbolText(symbols[0]);
-            if (text) return text;
-          }
-        } catch {}
-      }
-      return '';
-    }
-    async function decodeCanvas(canvas) {
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      let text = await decodeImageData(ctx.getImageData(0, 0, canvas.width, canvas.height));
-      if (text) return text;
-      text = await decodeImageData(boostContrast(ctx.getImageData(0, 0, canvas.width, canvas.height)));
-      if (text) return text;
-      try {
-        const Reader = window.ZXingBrowser && ZXingBrowser.BrowserMultiFormatReader;
-        if (Reader) {
-          const reader = new Reader();
-          const result = await reader.decodeFromCanvas(canvas);
-          if (result && result.getText()) return result.getText();
-        }
-      } catch {}
-      return '';
-    }
-    function paintSource(source, canvas, rotate, band) {
-      const sw = source.videoWidth || source.naturalWidth || source.width;
-      const sh = source.videoHeight || source.naturalHeight || source.height;
-      if (!sw || !sh) return false;
-      let sx = 0, sy = 0, sW = sw, sH = sh;
-      if (band) {
-        if (rotate) {
-          sW = Math.round(sw * 0.36);
-          sx = Math.round((sw - sW) / 2);
-        } else {
-          sH = Math.round(sh * 0.36);
-          sy = Math.round((sh - sH) / 2);
-        }
-      }
-      const outW = rotate ? sH : sW;
-      const outH = rotate ? sW : sH;
-      const scale = outW > 960 ? 960 / outW : 1;
-      canvas.width = Math.max(1, Math.round(outW * scale));
-      canvas.height = Math.max(1, Math.round(outH * scale));
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    return imageData;
+  }
+  async function decodeImageData(imageData) {
+    const zbar = window.zbarWasm;
+    if (!zbar || !zbar.scanImageData) return '';
+    try {
+      const symbols = await zbar.scanImageData(imageData);
+      if (symbols && symbols.length) return symbolText(symbols[0]);
+    } catch {}
+    return '';
+  }
+  async function decodeCanvas(canvas) {
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    let text = await decodeImageData(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    if (text) return text;
+    return decodeImageData(boostContrast(ctx.getImageData(0, 0, canvas.width, canvas.height)));
+  }
+  function paintSource(source, canvas, rotate, band) {
+    const sw = source.videoWidth || source.naturalWidth || source.width;
+    const sh = source.videoHeight || source.naturalHeight || source.height;
+    if (!sw || !sh) return false;
+    let sx = 0, sy = 0, sW = sw, sH = sh;
+    if (band) {
       if (rotate) {
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate(-Math.PI / 2);
-        ctx.drawImage(source, sx, sy, sW, sH, -canvas.height / 2, -canvas.width / 2, canvas.height, canvas.width);
+        sW = Math.round(sw * 0.4);
+        sx = Math.round((sw - sW) / 2);
       } else {
-        ctx.drawImage(source, sx, sy, sW, sH, 0, 0, canvas.width, canvas.height);
+        sH = Math.round(sh * 0.4);
+        sy = Math.round((sh - sH) / 2);
       }
-      return canvas.width > 8 && canvas.height > 8;
     }
-    async function readSource(source) {
-      const canvas = document.getElementById('scanCanvas') || document.createElement('canvas');
-      const attempts = [
-        { rotate: false, band: true },
-        { rotate: true, band: true },
-        { rotate: false, band: false },
-        { rotate: true, band: false }
-      ];
-      for (const attempt of attempts) {
-        if (!paintSource(source, canvas, attempt.rotate, attempt.band)) continue;
-        const text = await decodeCanvas(canvas);
-        if (text) return text;
+    const outW = rotate ? sH : sW;
+    const outH = rotate ? sW : sH;
+    const scale = outW > 1400 ? 1400 / outW : 1;
+    canvas.width = Math.max(1, Math.round(outW * scale));
+    canvas.height = Math.max(1, Math.round(outH * scale));
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (rotate) {
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.drawImage(source, sx, sy, sW, sH, -canvas.height / 2, -canvas.width / 2, canvas.height, canvas.width);
+    } else {
+      ctx.drawImage(source, sx, sy, sW, sH, 0, 0, canvas.width, canvas.height);
+    }
+    return true;
+  }
+  async function readSource(source) {
+    const canvas = document.getElementById('scanCanvas') || document.createElement('canvas');
+    const attempts = [
+      { rotate: false, band: false },
+      { rotate: false, band: true },
+      { rotate: true, band: false },
+      { rotate: true, band: true }
+    ];
+    for (const attempt of attempts) {
+      if (!paintSource(source, canvas, attempt.rotate, attempt.band)) continue;
+      const text = await decodeCanvas(canvas);
+      if (text) return text;
+    }
+    return '';
+  }
+  function startScan() {
+    const input = document.getElementById('scanFile');
+    if (!input) {
+      if (typeof window.flash === 'function') window.flash('Сканер недоступен');
+      return;
+    }
+    input.value = '';
+    input.click();
+  }
+  async function scanPhoto(file) {
+    if (!file) return;
+    if (typeof window.flash === 'function') window.flash('Читаю этикетку…');
+    scanBusy = true;
+    try {
+      let source;
+      if (typeof createImageBitmap === 'function') {
+        try { source = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch {}
       }
-      return '';
-    }
-    function startDecoder(video) {
-      const tick = async () => {
-        if (!scanBusy) return;
-        if (video.readyState >= 2) {
-          try {
-            const text = await readSource(video);
-            if (text) { hitScan(text); return; }
-          } catch {}
-        }
-        scanTimer = window.setTimeout(tick, 90);
-      };
-      scanTimer = window.setTimeout(tick, 120);
-    }
-    function startScan() {
-      if (scanBusy) return;
-      const overlay = document.getElementById('scanOverlay');
-      const video = document.getElementById('scanVideo');
-      const status = document.getElementById('scanStatus');
-      if (!overlay || !video) return;
-      scanBusy = true;
-      overlay.hidden = false;
-      if (status) status.textContent = 'Включение камеры…';
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        if (status) status.textContent = 'Камера недоступна. Снимите фото этикетки.';
-        return;
-      }
-      const open = (stream) => {
-        scanStream = stream;
-        video.setAttribute('playsinline', '');
-        video.setAttribute('webkit-playsinline', '');
-        video.muted = true;
-        video.autoplay = true;
-        video.srcObject = stream;
-        const play = video.play();
-        if (play && play.catch) play.catch(() => {});
-        if (status) status.textContent = 'Наведите рамку на штрихкод. Держите ровно.';
-        startDecoder(video);
-      };
-      const fail = () => {
-        if (status) status.textContent = 'Нет доступа к камере. Разрешите камеру Safari или снимите фото этикетки.';
-      };
-      navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: { ideal: 'environment' } }
-      }).then(open).catch(() => {
-        navigator.mediaDevices.getUserMedia({ audio: false, video: true }).then(open).catch(fail);
-      });
-    }
-    function stopScan() {
-      const overlay = document.getElementById('scanOverlay');
-      const video = document.getElementById('scanVideo');
-      if (scanTimer) { clearTimeout(scanTimer); scanTimer = 0; }
-      try { if (scanner && scanner.reset) scanner.reset(); } catch {}
-      scanner = null;
-      if (scanStream) {
-        scanStream.getTracks().forEach(track => track.stop());
-        scanStream = null;
-      }
-      if (video) video.srcObject = null;
-      scanBusy = false;
-      if (overlay) overlay.hidden = true;
-    }
-    async function scanPhoto(file) {
-      if (!file) return;
-      const status = document.getElementById('scanStatus');
-      if (status) status.textContent = 'Читаю фото…';
-      const url = URL.createObjectURL(file);
-      try {
-        const image = await new Promise((resolve, reject) => {
+      if (!source) {
+        const url = URL.createObjectURL(file);
+        source = await new Promise((resolve, reject) => {
           const img = new Image();
           img.onload = () => resolve(img);
           img.onerror = reject;
           img.src = url;
         });
-        const text = await readSource(image);
-        if (text) hitScan(text);
-        else {
-          if (status) status.textContent = 'Код на фото не распознан. Снимите ближе, без блика.';
-          if (typeof window.flash === 'function') window.flash('Код на фото не распознан');
-        }
-      } catch (e) {
-        if (status) status.textContent = 'Не удалось открыть фото.';
-      } finally {
         URL.revokeObjectURL(url);
       }
+      const text = await readSource(source);
+      if (source && source.close) try { source.close(); } catch {}
+      if (!hitScan(text) && typeof window.flash === 'function') {
+        window.flash('Код не распознан. Снимите ближе, с зумом.');
+      }
+    } catch (e) {
+      scanBusy = false;
+      if (typeof window.flash === 'function') window.flash('Не удалось открыть фото');
     }
+  }
 
   const api = {
     ready,
@@ -523,9 +459,6 @@ const Catalog = (() => {
     }
   };
 
-  document.addEventListener('click', e => {
-    if (e.target && e.target.id === 'scanClose') stopScan();
-  });
   document.addEventListener('change', e => {
     if (e.target && e.target.id === 'scanFile' && e.target.files && e.target.files[0]) {
       scanPhoto(e.target.files[0]);
