@@ -26,6 +26,7 @@ const Catalog = (() => {
   let productCount = 0;
   let scanner = null;
   let scanBusy = false;
+  let scanStream = null;
 
   function normalize(value) {
     return String(value || '').toLowerCase().replace(/ё/g, 'е').replace(/[^0-9a-zа-я]/g, '');
@@ -225,46 +226,92 @@ const Catalog = (() => {
     return !!code && byCode.has(String(code));
   }
 
-  async function loadScannerLib() {
-    if (window.Html5Qrcode) return;
-    await new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = 'vendor/html5-qrcode.min.js';
-      s.onload = resolve;
-      s.onerror = reject;
-      document.head.appendChild(s);
-    });
+  function hitScan(text) {
+    if (!text || !scanBusy) return;
+    stopScan();
+    if (typeof window.onBarcode === 'function') window.onBarcode(String(text));
   }
-  async function startScan() {
+  function startDecoder(video, stream) {
+    const Reader = window.ZXingBrowser && ZXingBrowser.BrowserMultiFormatReader;
+    if (!Reader) return;
+    try {
+      scanner = new Reader();
+      const run = scanner.decodeFromStream
+        ? scanner.decodeFromStream(stream, video, (result) => { if (result) hitScan(result.getText()); })
+        : scanner.decodeFromVideoDevice(undefined, video, (result) => { if (result) hitScan(result.getText()); });
+      if (run && run.catch) run.catch(() => {});
+    } catch (e) {}
+  }
+  function startScan() {
     if (scanBusy) return;
     const overlay = document.getElementById('scanOverlay');
-    if (!overlay) return;
+    const video = document.getElementById('scanVideo');
+    const status = document.getElementById('scanStatus');
+    if (!overlay || !video) return;
     scanBusy = true;
     overlay.hidden = false;
-    try {
-      await loadScannerLib();
-      scanner = new Html5Qrcode('qr-reader', { verbose: false });
-      await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 8, qrbox: { width: 280, height: 180 }, aspectRatio: 0.75 },
-        decoded => {
-          stopScan();
-          if (typeof window.onBarcode === 'function') window.onBarcode(decoded);
-        }
-      );
-    } catch (e) {
-      overlay.hidden = true;
-      scanBusy = false;
-      if (typeof window.flash === 'function') window.flash('Камера недоступна. Введите код.');
+    if (status) status.textContent = 'Включение камеры…';
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      if (status) status.textContent = 'Камера недоступна. Снимите фото этикетки.';
+      return;
     }
+    const open = (stream) => {
+      scanStream = stream;
+      video.setAttribute('playsinline', '');
+      video.setAttribute('webkit-playsinline', '');
+      video.muted = true;
+      video.autoplay = true;
+      video.srcObject = stream;
+      const play = video.play();
+      if (play && play.catch) play.catch(() => {});
+      if (status) status.textContent = 'Наведите рамку на штрихкод или QR';
+      startDecoder(video, stream);
+    };
+    const fail = () => {
+      if (status) status.textContent = 'Нет доступа к камере. В Настройках разрешите камеру Safari или снимите фото этикетки.';
+    };
+    navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    }).then(open).catch(() => {
+      navigator.mediaDevices.getUserMedia({ audio: false, video: true }).then(open).catch(fail);
+    });
   }
-  async function stopScan() {
+  function stopScan() {
     const overlay = document.getElementById('scanOverlay');
-    try { if (scanner) await scanner.stop(); } catch {}
-    try { if (scanner) await scanner.clear(); } catch {}
+    const video = document.getElementById('scanVideo');
+    try { if (scanner && scanner.reset) scanner.reset(); } catch {}
     scanner = null;
+    if (scanStream) {
+      scanStream.getTracks().forEach(track => track.stop());
+      scanStream = null;
+    }
+    if (video) {
+      video.srcObject = null;
+    }
     scanBusy = false;
     if (overlay) overlay.hidden = true;
+  }
+  async function scanPhoto(file) {
+    if (!file) return;
+    const status = document.getElementById('scanStatus');
+    if (status) status.textContent = 'Читаю фото…';
+    const Reader = window.ZXingBrowser && ZXingBrowser.BrowserMultiFormatReader;
+    if (!Reader) {
+      if (typeof window.flash === 'function') window.flash('Сканер не загрузился');
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    try {
+      const reader = new Reader();
+      const result = await reader.decodeFromImageUrl(url);
+      hitScan(result && result.getText());
+    } catch (e) {
+      if (status) status.textContent = 'Код на фото не распознан. Снимите ближе и ровнее.';
+      if (typeof window.flash === 'function') window.flash('Код на фото не распознан');
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   }
 
   const api = {
@@ -382,6 +429,12 @@ const Catalog = (() => {
 
   document.addEventListener('click', e => {
     if (e.target && e.target.id === 'scanClose') stopScan();
+  });
+  document.addEventListener('change', e => {
+    if (e.target && e.target.id === 'scanFile' && e.target.files && e.target.files[0]) {
+      scanPhoto(e.target.files[0]);
+      e.target.value = '';
+    }
   });
   window.addEventListener('online', () => { if (window.renderMeta) window.renderMeta(); });
   window.addEventListener('offline', () => { if (window.renderMeta) window.renderMeta(); });

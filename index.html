@@ -60,10 +60,17 @@
       <span>Сканер АЭ</span>
       <button type="button" id="scanClose" aria-label="Закрыть">×</button>
     </div>
-    <div id="qr-reader"></div>
-    <p class="scan-hint">Наведите рамку на штрихкод<br>или QR-код этикетки</p>
+    <div class="scan-stage">
+      <video id="scanVideo" playsinline webkit-playsinline muted autoplay></video>
+      <div class="scan-frame"></div>
+    </div>
+    <p id="scanStatus" class="scan-hint">Наведите рамку на штрихкод<br>или QR-код этикетки</p>
+    <label class="scan-photo-btn">Снять фото этикетки
+      <input id="scanFile" type="file" accept="image/*" capture="environment">
+    </label>
   </div>
   <div id="toast" role="status" aria-live="polite"></div>
+  <script src="vendor/zxing-browser.min.js"></script>
   <script src="catalog.js"></script>
   <script src="app.js"></script>
 </body>

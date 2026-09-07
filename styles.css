@@ -40,7 +40,10 @@ html,body{min-height:100%;padding-bottom:env(safe-area-inset-bottom)}
 .scan-top{display:flex;align-items:center;justify-content:space-between;padding:calc(12px + env(safe-area-inset-top)) 16px 10px}
 .scan-top span{font-weight:800;font-size:20px}
 #scanClose{width:44px;height:44px;border:0;border-radius:50%;background:#ffffff22;color:#fff;font-size:28px}
-#qr-reader{flex:1;min-height:0}
-#qr-reader video{width:100%;height:100%;object-fit:cover}
-.scan-hint{text-align:center;padding:0 24px calc(28px + env(safe-area-inset-bottom));font-size:16px;line-height:1.35}
+.scan-stage{position:relative;flex:1;min-height:220px;background:#000;overflow:hidden}
+#scanVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+.scan-frame{position:absolute;left:50%;top:50%;width:78%;height:28%;min-height:110px;transform:translate(-50%,-50%);border:2px solid #f49b21;border-radius:12px;box-shadow:0 0 0 999px #0006;pointer-events:none}
+.scan-hint{text-align:center;padding:8px 24px 10px;font-size:16px;line-height:1.35}
+.scan-photo-btn{display:block;margin:0 24px calc(22px + env(safe-area-inset-bottom));background:#0b48a1;color:#fff;text-align:center;border-radius:12px;padding:14px;font-weight:700}
+.scan-photo-btn input{display:none}
 @media(max-width:560px){header{padding-left:12px;padding-right:12px}.brand img{width:110px}.search-panel{top:108px}.search-row{grid-template-columns:1fr auto}main{padding:11px}.detail{padding:17px}.card-main{padding:11px;grid-template-columns:56px 1fr}.thumb{width:56px;height:56px}}
